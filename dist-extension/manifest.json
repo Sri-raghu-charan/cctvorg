@@ -4,7 +4,17 @@
   "version": "1.0.0",
   "description": "Professional 3D geospatial CCTV camera placement, FOV frustum, blind spot, and DORI coverage planning overlay for Google Earth and Google Maps.",
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://earth.google.com/*",
+    "*://*.google.com/earth/*",
+    "*://google.com/earth/*",
+    "*://*.google.com/maps/*",
+    "*://maps.google.com/*",
+    "*://google.com/maps/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",

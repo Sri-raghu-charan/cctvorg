@@ -2,9 +2,37 @@
  * Manifest V3 Background Service Worker for CCTV GeoPlanner
  */
 
-chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === 'install') {
-    console.log('CCTV GeoPlanner Extension installed successfully.');
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log('CCTV GeoPlanner Extension installed/reloaded:', details.reason);
+  try {
+    const tabs = await chrome.tabs.query({
+      url: [
+        '*://earth.google.com/*',
+        '*://*.google.com/earth/*',
+        '*://google.com/earth/*',
+        '*://*.google.com/maps/*',
+        '*://maps.google.com/*',
+        '*://google.com/maps/*'
+      ]
+    });
+    for (const tab of tabs) {
+      if (tab.id) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content/content.js']
+          });
+          await chrome.scripting.insertCSS({
+            target: { tabId: tab.id },
+            files: ['content/content.css']
+          });
+        } catch {
+          // Tab might be in restricted state or already injected
+        }
+      }
+    }
+  } catch (err) {
+    console.debug('Tab auto-injection skipped:', err);
   }
 });
 

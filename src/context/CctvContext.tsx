@@ -9,11 +9,11 @@ import {
   OverlapResult,
   PlanningPerimeter
 } from '../types/camera';
-import { VERIFIED_CAMERA_MODELS, createCustomCameraSpecs } from '../data/cameraModels';
+import { VERIFIED_CAMERA_MODELS } from '../data/cameraModels';
 import { computeCameraFootprint } from '../geo/frustum';
 import { calculateDoriDistances } from '../geo/dori';
 import { moveCamera, resetCameraToOriginal } from '../geo/movement';
-import { normalizeHeading } from '../geo/coordinates';
+import { normalizeHeading, computeBearing } from '../geo/coordinates';
 import { analyzeBlindSpots, analyzeOverlaps } from '../geo/analysis';
 import { storage } from '../services/storage';
 
@@ -37,6 +37,8 @@ interface CctvContextType {
   planningPerimeter: PlanningPerimeter | null;
   blindSpotAnalysis: BlindSpotAnalysisResult | null;
   isPlacingCamera: boolean;
+  isRelocatingCamera: boolean;
+  isAimingCamera: boolean;
   doriLayers: DoriLayerVisibility;
   baseLayer: BaseLayerType;
   cesiumIonToken: string;
@@ -44,11 +46,16 @@ interface CctvContextType {
 
   // Actions
   setIsPlacingCamera: (val: boolean) => void;
+  setIsRelocatingCamera: (val: boolean) => void;
+  setIsAimingCamera: (val: boolean) => void;
   setBaseLayer: (layer: BaseLayerType) => void;
   setCesiumIonToken: (token: string) => void;
   setDoriLayers: React.Dispatch<React.SetStateAction<DoriLayerVisibility>>;
   selectCamera: (id: string | null) => void;
   addCameraAtCoordinates: (coords: Coordinates, specs?: any) => Camera;
+  relocateCamera: (id: string, coords: Coordinates) => void;
+  aimCameraAt: (id: string, targetCoords: Coordinates) => void;
+  applyJunctionPreset: (id: string, presetName: JunctionPresetType) => void;
   updateCamera: (id: string, updates: Partial<Camera>) => void;
   deleteCamera: (id: string) => void;
   duplicateCamera: (id: string) => void;
@@ -64,6 +71,62 @@ interface CctvContextType {
   flyToTarget: Coordinates | null;
   setFlyToTarget: (target: Coordinates | null) => void;
 }
+
+export type JunctionPresetType = 'intersection' | 'approach' | 'tJunction' | 'roundabout';
+
+export interface JunctionPreset {
+  name: JunctionPresetType;
+  label: string;
+  description: string;
+  rangeMeters: number;
+  mountingHeight: number;
+  tilt: number;
+  hfov: number;
+  vfov: number;
+}
+
+export const JUNCTION_PRESETS: Record<JunctionPresetType, JunctionPreset> = {
+  intersection: {
+    name: 'intersection',
+    label: 'Intersection Overview',
+    description: 'Wide coverage of 3/4-way junction, turn lanes & pedestrian crossings',
+    rangeMeters: 32,
+    mountingHeight: 6.0,
+    tilt: 26,
+    hfov: 95,
+    vfov: 52
+  },
+  approach: {
+    name: 'approach',
+    label: 'Approach Lane Tracking',
+    description: 'Focused view down approach street for vehicle & plate identification',
+    rangeMeters: 45,
+    mountingHeight: 6.0,
+    tilt: 18,
+    hfov: 60,
+    vfov: 34
+  },
+  tJunction: {
+    name: 'tJunction',
+    label: 'T-Junction / Pedestrian Corner',
+    description: 'Corner-mounted for high-res monitoring of side road turns & foot traffic',
+    rangeMeters: 22,
+    mountingHeight: 4.5,
+    tilt: 32,
+    hfov: 105,
+    vfov: 58
+  },
+  roundabout: {
+    name: 'roundabout',
+    label: 'Roundabout Traffic Flow',
+    description: 'Elevated wide angle overseeing circular entries, exits, and merges',
+    rangeMeters: 38,
+    mountingHeight: 6.5,
+    tilt: 22,
+    hfov: 80,
+    vfov: 45
+  }
+};
 
 const CctvContext = createContext<CctvContextType | null>(null);
 
@@ -92,11 +155,11 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       longitude: -73.9855,
       elevation: 10
     },
-    mountingHeight: 6.0, // 6 meters
-    heading: 90, // Facing East
-    tilt: 25, // 25° depression
-    rangeMeters: 65,
-    specs: VERIFIED_CAMERA_MODELS[0], // AXIS P1468-LE 4K Bullet
+    mountingHeight: 4.5, // 4.5 meters recommended
+    heading: 0, // Facing North
+    tilt: 22, // 22° depression angle
+    rangeMeters: 77, // 77m verified datasheet optical detection reach
+    specs: VERIFIED_CAMERA_MODELS[0], // Hikvision ColorVu Panoramic Turret
     visible: true,
     color: DEFAULT_CAMERA_COLORS[0]
   };
@@ -104,6 +167,8 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
   const [isPlacingCamera, setIsPlacingCamera] = useState<boolean>(false);
+  const [isRelocatingCamera, setIsRelocatingCamera] = useState<boolean>(false);
+  const [isAimingCamera, setIsAimingCamera] = useState<boolean>(false);
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite');
   const [cesiumIonToken, setCesiumIonToken] = useState<string>('');
   const [flyToTarget, setFlyToTarget] = useState<Coordinates | null>(null);
@@ -249,10 +314,10 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: `Camera ${cameras.length + 1} (${cameraSpecs.modelName.split(' ')[0]})`,
         position: { ...coords },
         originalPosition: { ...coords },
-        mountingHeight: 5.0,
+        mountingHeight: cameraSpecs.recommendedHeight || 5.0,
         heading: 0,
-        tilt: 20,
-        rangeMeters: cameraSpecs.maxOpticalRangeMeters || 50,
+        tilt: cameraSpecs.recommendedTilt || 25,
+        rangeMeters: cameraSpecs.maxOpticalRangeMeters || 45,
         specs: cameraSpecs,
         visible: true,
         color: DEFAULT_CAMERA_COLORS[colorIndex]
@@ -261,10 +326,59 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCameras((prev) => [...prev, newCamera]);
       setActiveCameraId(newCamera.id);
       setIsPlacingCamera(false);
+      setIsRelocatingCamera(false);
+      setIsAimingCamera(false);
       return newCamera;
     },
     [cameras]
   );
+
+  // Relocate camera to target coordinates
+  const relocateCamera = useCallback((id: string, coords: Coordinates) => {
+    setCameras((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, position: { ...coords } } : c))
+    );
+    setIsRelocatingCamera(false);
+  }, []);
+
+  // Aim camera at target coordinates
+  const aimCameraAt = useCallback((id: string, targetCoords: Coordinates) => {
+    setCameras((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const bearing = computeBearing(
+          c.position.latitude,
+          c.position.longitude,
+          targetCoords.latitude,
+          targetCoords.longitude
+        );
+        return { ...c, heading: bearing };
+      })
+    );
+    setIsAimingCamera(false);
+  }, []);
+
+  // Apply junction presets
+  const applyJunctionPreset = useCallback((id: string, presetName: JunctionPresetType) => {
+    const preset = JUNCTION_PRESETS[presetName];
+    if (!preset) return;
+    setCameras((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        return {
+          ...c,
+          rangeMeters: preset.rangeMeters,
+          mountingHeight: preset.mountingHeight,
+          tilt: preset.tilt,
+          specs: {
+            ...c.specs,
+            selectedHfov: preset.hfov,
+            selectedVfov: preset.vfov
+          }
+        };
+      })
+    );
+  }, []);
 
   // Update camera
   const updateCamera = useCallback((id: string, updates: Partial<Camera>) => {
@@ -495,16 +609,23 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         planningPerimeter,
         blindSpotAnalysis,
         isPlacingCamera,
+        isRelocatingCamera,
+        isAimingCamera,
         doriLayers,
         baseLayer,
         cesiumIonToken,
         historyStack,
         setIsPlacingCamera,
+        setIsRelocatingCamera,
+        setIsAimingCamera,
         setBaseLayer,
         setCesiumIonToken,
         setDoriLayers,
         selectCamera,
         addCameraAtCoordinates,
+        relocateCamera,
+        aimCameraAt,
+        applyJunctionPreset,
         updateCamera,
         deleteCamera,
         duplicateCamera,

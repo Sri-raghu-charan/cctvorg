@@ -8,10 +8,24 @@ import './popup.css';
 const PopupApp: React.FC = () => {
   const [cameras, setCameras] = useState<Camera[]>([]);
 
+  const [activeTabIsMap, setActiveTabIsMap] = useState<boolean>(false);
+  const [activeTabId, setActiveTabId] = useState<number | null>(null);
+
   useEffect(() => {
     storage.get<Camera[]>('cctv_saved_cameras', []).then((cams) => {
       setCameras(cams);
     });
+
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (tab?.url) {
+          const isMap = tab.url.includes('earth.google.com') || tab.url.includes('google.com/maps');
+          setActiveTabIsMap(isMap);
+          if (tab.id) setActiveTabId(tab.id);
+        }
+      });
+    }
   }, []);
 
   const openUrl = (url: string) => {
@@ -19,6 +33,20 @@ const PopupApp: React.FC = () => {
       chrome.tabs.create({ url });
     } else {
       window.open(url, '_blank');
+    }
+  };
+
+  const toggleOverlay = () => {
+    if (activeTabId && typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.sendMessage(activeTabId, { type: 'TOGGLE_OVERLAY' });
+      window.close();
+    }
+  };
+
+  const reloadActiveMap = () => {
+    if (activeTabId && typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.reload(activeTabId);
+      window.close();
     }
   };
 
@@ -69,32 +97,55 @@ const PopupApp: React.FC = () => {
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Geodesic Engine:</span>
-          <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <ShieldCheck size={13} /> WGS84 Geodesics
+          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Active Site:</span>
+          <span style={{ fontSize: '11px', color: activeTabIsMap ? '#10b981' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ShieldCheck size={13} /> {activeTabIsMap ? 'Connected to Map' : 'Standby'}
           </span>
         </div>
       </div>
 
-      {/* Target Platforms */}
+      {/* Target Platforms & Actions */}
       <div className="popup-actions">
-        <button
-          type="button"
-          className="btn btn-primary"
-          style={{ justifyContent: 'center', fontSize: '12px' }}
-          onClick={() => openUrl('https://earth.google.com/web/')}
-        >
-          <Globe2 size={14} /> Open in Google Earth
-        </button>
+        {activeTabIsMap ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ justifyContent: 'center', fontSize: '12px' }}
+              onClick={toggleOverlay}
+            >
+              <Video size={14} /> Toggle CCTV Planner
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ justifyContent: 'center', fontSize: '12px' }}
+              onClick={reloadActiveMap}
+            >
+              🔄 Refresh Tab to Activate
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ justifyContent: 'center', fontSize: '12px' }}
+              onClick={() => openUrl('https://earth.google.com/web/')}
+            >
+              <Globe2 size={14} /> Open in Google Earth
+            </button>
 
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ justifyContent: 'center', fontSize: '12px' }}
-          onClick={() => openUrl('https://www.google.com/maps')}
-        >
-          <Map size={14} /> Open in Google Maps
-        </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ justifyContent: 'center', fontSize: '12px' }}
+              onClick={() => openUrl('https://www.google.com/maps')}
+            >
+              <Map size={14} /> Open in Google Maps
+            </button>
+          </>
+        )}
 
         <button
           type="button"

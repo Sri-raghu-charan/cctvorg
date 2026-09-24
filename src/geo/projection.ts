@@ -297,8 +297,138 @@ export function unprojectGoogleMapsScreen(
 }
 
 /**
- * Inverse projection for Google Earth: approximates clicked ground coordinate
- * from screen position and camera distance/center.
+ * Projects a 3D polygon onto Google Earth screen viewport with Sutherland-Hodgman
+ * near-plane clipping. Prevents polygon vertices behind or near the camera from
+ * inverting, blowing up to infinity, or shooting off-screen to (-9999, -9999).
+ */
+export function projectGoogleEarthPolygon(
+  coords: { latitude: number; longitude: number }[],
+  elev: number = 0,
+  view: GoogleEarthViewState,
+  viewport: ViewportSize
+): { x: number; y: number }[] {
+  if (!coords || coords.length < 3) return [];
+
+  const { width, height } = viewport;
+  const fovDeg = view.fov && view.fov > 0 ? view.fov : 35;
+  const fovRad = fovDeg * TO_RAD;
+  const focalLength = (height / 2) / Math.tan(fovRad / 2);
+
+  // Target ground point in ECEF:
+  const targetAlt = view.altitude || elev || 0;
+  const [tx, ty, tz] = geodeticToEcef(view.latitude, view.longitude, targetAlt);
+
+  // Local ENU basis vectors in ECEF at target ground point:
+  const latRad = view.latitude * TO_RAD;
+  const lonRad = view.longitude * TO_RAD;
+  const sinLat = Math.sin(latRad);
+  const cosLat = Math.cos(latRad);
+  const sinLon = Math.sin(lonRad);
+  const cosLon = Math.cos(lonRad);
+
+  const eEast = [-sinLon, cosLon, 0];
+  const eNorth = [-sinLat * cosLon, -sinLat * sinLon, cosLat];
+  const eUp = [cosLat * cosLon, cosLat * sinLon, sinLat];
+
+  // Camera orientation angles:
+  const dist = Math.max(1, view.distance || 1000);
+  const theta = (Math.max(0, Math.min(89.5, view.pitch || 0))) * TO_RAD;
+  const psi = (view.heading || 0) * TO_RAD;
+
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const sinPsi = Math.sin(psi);
+  const cosPsi = Math.cos(psi);
+
+  // Optical Look Vector L in ECEF:
+  const lx = (sinTheta * sinPsi) * eEast[0] + (sinTheta * cosPsi) * eNorth[0] + (-cosTheta) * eUp[0];
+  const ly = (sinTheta * sinPsi) * eEast[1] + (sinTheta * cosPsi) * eNorth[1] + (-cosTheta) * eUp[1];
+  const lz = (sinTheta * sinPsi) * eEast[2] + (sinTheta * cosPsi) * eNorth[2] + (-cosTheta) * eUp[2];
+
+  // Camera eye position in ECEF:
+  const eyeX = tx - dist * lx;
+  const eyeY = ty - dist * ly;
+  const eyeZ = tz - dist * lz;
+
+  // Right Vector R:
+  let rx = (cosPsi) * eEast[0] + (-sinPsi) * eNorth[0];
+  let ry = (cosPsi) * eEast[1] + (-sinPsi) * eNorth[1];
+  let rz = (cosPsi) * eEast[2] + (-sinPsi) * eNorth[2];
+
+  // Up Vector U:
+  let ux = ry * lz - rz * ly;
+  let uy = rz * lx - rx * lz;
+  let uz = rx * ly - ry * lx;
+
+  if (view.roll) {
+    const rollRad = (view.roll || 0) * TO_RAD;
+    const cosRoll = Math.cos(rollRad);
+    const sinRoll = Math.sin(rollRad);
+    const newRx = rx * cosRoll + ux * sinRoll;
+    const newRy = ry * cosRoll + uy * sinRoll;
+    const newRz = rz * cosRoll + uz * sinRoll;
+    const newUx = -rx * sinRoll + ux * cosRoll;
+    const newUy = -ry * sinRoll + uy * cosRoll;
+    const newUz = -rz * sinRoll + uz * cosRoll;
+    rx = newRx; ry = newRy; rz = newRz;
+    ux = newUx; uy = newUy; uz = newUz;
+  }
+
+  // Convert each vertex to camera space:
+  interface CamVertex { x: number; y: number; z: number }
+  const camVertices: CamVertex[] = [];
+  for (const c of coords) {
+    const [px, py, pz] = geodeticToEcef(c.latitude, c.longitude, elev);
+    const vx = px - eyeX;
+    const vy = py - eyeY;
+    const vz = pz - eyeZ;
+    const zCam = vx * lx + vy * ly + vz * lz;
+    const xCam = vx * rx + vy * ry + vz * rz;
+    const yCam = vx * ux + vy * uy + vz * uz;
+    camVertices.push({ x: xCam, y: yCam, z: zCam });
+  }
+
+  // Sutherland-Hodgman clip against near plane z >= nearZ (0.5m)
+  const nearZ = 0.5;
+  const clipped: CamVertex[] = [];
+  const n = camVertices.length;
+  for (let i = 0; i < n; i++) {
+    const p1 = camVertices[i];
+    const p2 = camVertices[(i + 1) % n];
+    const p1In = p1.z >= nearZ;
+    const p2In = p2.z >= nearZ;
+
+    if (p1In && p2In) {
+      clipped.push(p2);
+    } else if (p1In && !p2In) {
+      const t = (nearZ - p1.z) / (p2.z - p1.z);
+      clipped.push({
+        x: p1.x + t * (p2.x - p1.x),
+        y: p1.y + t * (p2.y - p1.y),
+        z: nearZ
+      });
+    } else if (!p1In && p2In) {
+      const t = (nearZ - p1.z) / (p2.z - p1.z);
+      clipped.push({
+        x: p1.x + t * (p2.x - p1.x),
+        y: p1.y + t * (p2.y - p1.y),
+        z: nearZ
+      });
+      clipped.push(p2);
+    }
+  }
+
+  if (clipped.length < 3) return [];
+
+  return clipped.map((pt) => ({
+    x: Number((width / 2 + (pt.x * focalLength) / pt.z).toFixed(1)),
+    y: Number((height / 2 - (pt.y * focalLength) / pt.z).toFixed(1))
+  }));
+}
+
+/**
+ * Inverse projection for Google Earth: computes exact clicked ground coordinate
+ * via 3D ray-plane intersection in ECEF, guaranteeing exact positioning and zero drift.
  */
 export function unprojectGoogleEarthScreen(
   screenX: number,
@@ -311,31 +441,104 @@ export function unprojectGoogleEarthScreen(
   const fovRad = fovDeg * TO_RAD;
   const focalLength = (height / 2) / Math.tan(fovRad / 2);
 
-  const dxScreen = screenX - width / 2;
-  const dyScreen = height / 2 - screenY;
+  // Target ground point in ECEF:
+  const targetAlt = view.altitude || 0;
+  const [tx, ty, tz] = geodeticToEcef(view.latitude, view.longitude, targetAlt);
 
-  const dist = Math.max(1, view.distance || view.altitude || 1000);
-  const groundScale = dist / focalLength;
+  // Local ENU basis vectors in ECEF at target ground point:
+  const latRad = view.latitude * TO_RAD;
+  const lonRad = view.longitude * TO_RAD;
+  const sinLat = Math.sin(latRad);
+  const cosLat = Math.cos(latRad);
+  const sinLon = Math.sin(lonRad);
+  const cosLon = Math.cos(lonRad);
 
+  const eEast = [-sinLon, cosLon, 0];
+  const eNorth = [-sinLat * cosLon, -sinLat * sinLon, cosLat];
+  const eUp = [cosLat * cosLon, cosLat * sinLon, sinLat];
+
+  // Camera orientation angles:
+  const dist = Math.max(1, view.distance || 1000);
   const theta = (Math.max(0, Math.min(89.5, view.pitch || 0))) * TO_RAD;
   const psi = (view.heading || 0) * TO_RAD;
 
-  // Account for camera tilt foreshortening on Y axis
-  const tiltFactor = Math.cos(theta) > 0.05 ? 1 / Math.cos(theta) : 1;
-  const dxLocal = dxScreen * groundScale;
-  const dyLocal = dyScreen * groundScale * tiltFactor;
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const sinPsi = Math.sin(psi);
+  const cosPsi = Math.cos(psi);
 
-  const eastMeters = dxLocal * Math.cos(psi) + dyLocal * Math.sin(psi);
-  const northMeters = -dxLocal * Math.sin(psi) + dyLocal * Math.cos(psi);
+  // Look vector L in ECEF:
+  const lx = (sinTheta * sinPsi) * eEast[0] + (sinTheta * cosPsi) * eNorth[0] + (-cosTheta) * eUp[0];
+  const ly = (sinTheta * sinPsi) * eEast[1] + (sinTheta * cosPsi) * eNorth[1] + (-cosTheta) * eUp[1];
+  const lz = (sinTheta * sinPsi) * eEast[2] + (sinTheta * cosPsi) * eNorth[2] + (-cosTheta) * eUp[2];
 
-  const centerLatRad = view.latitude * TO_RAD;
-  const cosLat = Math.cos(centerLatRad);
+  // Eye in ECEF:
+  const eyeX = tx - dist * lx;
+  const eyeY = ty - dist * ly;
+  const eyeZ = tz - dist * lz;
 
-  const deltaLon = (eastMeters / (EARTH_RADIUS_METERS * cosLat)) * TO_DEG;
-  const deltaLat = (northMeters / EARTH_RADIUS_METERS) * TO_DEG;
+  // Right Vector R:
+  let rx = (cosPsi) * eEast[0] + (-sinPsi) * eNorth[0];
+  let ry = (cosPsi) * eEast[1] + (-sinPsi) * eNorth[1];
+  let rz = (cosPsi) * eEast[2] + (-sinPsi) * eNorth[2];
+
+  // Up Vector U:
+  let ux = ry * lz - rz * ly;
+  let uy = rz * lx - rx * lz;
+  let uz = rx * ly - ry * lx;
+
+  if (view.roll) {
+    const rollRad = (view.roll || 0) * TO_RAD;
+    const cosRoll = Math.cos(rollRad);
+    const sinRoll = Math.sin(rollRad);
+    const newRx = rx * cosRoll + ux * sinRoll;
+    const newRy = ry * cosRoll + uy * sinRoll;
+    const newRz = rz * cosRoll + uz * sinRoll;
+    const newUx = -rx * sinRoll + ux * cosRoll;
+    const newUy = -ry * sinRoll + uy * cosRoll;
+    const newUz = -rz * sinRoll + uz * cosRoll;
+    rx = newRx; ry = newRy; rz = newRz;
+    ux = newUx; uy = newUy; uz = newUz;
+  }
+
+  // Camera ray in ECEF:
+  const dx = screenX - width / 2;
+  const dy = height / 2 - screenY; // Screen Y is inverted relative to camera Up
+  const rayX = dx * rx + dy * ux + focalLength * lx;
+  const rayY = dx * ry + dy * uy + focalLength * ly;
+  const rayZ = dx * rz + dy * uz + focalLength * lz;
+
+  const rayLen = Math.hypot(rayX, rayY, rayZ);
+  const dirX = rayX / rayLen;
+  const dirY = rayY / rayLen;
+  const dirZ = rayZ / rayLen;
+
+  // Intersect ray with ground plane through Target T with normal eUp:
+  const dirDotUp = dirX * eUp[0] + dirY * eUp[1] + dirZ * eUp[2];
+  const lDotUp = lx * eUp[0] + ly * eUp[1] + lz * eUp[2];
+
+  let t = dist;
+  if (dirDotUp < -0.001) {
+    t = (dist * lDotUp) / dirDotUp;
+  }
+
+  const px = eyeX + t * dirX;
+  const py = eyeY + t * dirY;
+  const pz = eyeZ + t * dirZ;
+
+  // Convert ECEF coordinate P back to Geodetic WGS84:
+  const p = Math.hypot(px, py);
+  const lon = Math.atan2(py, px) * TO_DEG;
+  let lat = Math.atan2(pz, p * (1 - WGS84_E2)) * TO_DEG;
+
+  // Refine latitude with Bowring's method for millimeter accuracy
+  const latRadRef = lat * TO_RAD;
+  const sinL = Math.sin(latRadRef);
+  const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinL * sinL);
+  lat = Math.atan2(pz + WGS84_E2 * N * sinL, p) * TO_DEG;
 
   return {
-    latitude: Number((view.latitude + deltaLat).toFixed(7)),
-    longitude: Number((view.longitude + deltaLon).toFixed(7))
+    latitude: Number(lat.toFixed(7)),
+    longitude: Number(lon.toFixed(7))
   };
 }

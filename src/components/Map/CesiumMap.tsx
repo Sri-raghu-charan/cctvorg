@@ -233,27 +233,17 @@ export const CesiumMap: React.FC = () => {
         return;
       }
 
-      // 2. Otherwise: Check if a camera icon or footprint was clicked
+      // 2. Otherwise: Check if a camera icon was clicked to select
       const picked = viewer.scene.pick(click.position);
       if (picked && picked.id) {
         const entityId = picked.id.id || picked.id;
         const matchedCamera = cameras.find(
           (c) =>
             entityId === c.id ||
-            entityId === `${c.id}-marker` ||
-            entityId === `${c.id}-footprint`
+            entityId === `${c.id}-marker`
         );
         if (matchedCamera) {
           selectCamera(matchedCamera.id);
-          // Fly to exact camera location if selected
-          viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-              matchedCamera.position.longitude,
-              matchedCamera.position.latitude,
-              180
-            ),
-            duration: 1.0
-          });
         }
       }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -312,7 +302,7 @@ export const CesiumMap: React.FC = () => {
           height: isSelected ? 48 : 38,
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
           horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-          eyeOffset: new Cesium.Cartesian3(0, 0, -5),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: new Cesium.NearFarScalar(100, 1.0, 5000, 0.5)
         },
         label: {
@@ -323,6 +313,7 @@ export const CesiumMap: React.FC = () => {
           outlineColor: Cesium.Color.BLACK,
           outlineWidth: 2,
           pixelOffset: new Cesium.Cartesian2(0, isSelected ? -52 : -42),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: new Cesium.NearFarScalar(100, 1.0, 4000, 0.5)
         }
       });
@@ -355,7 +346,7 @@ export const CesiumMap: React.FC = () => {
           flatCoords.push(v.longitude, v.latitude);
         });
 
-        // Main Footprint Polygon
+        // Main Footprint Polygon clamped strictly to ground
         if (doriLayers.maxGeometric) {
           viewer.entities.add({
             id: `${camera.id}-footprint`,
@@ -364,7 +355,8 @@ export const CesiumMap: React.FC = () => {
               material: Cesium.Color.fromCssColorString(camera.color).withAlpha(isSelected ? 0.35 : 0.2),
               outline: true,
               outlineColor: Cesium.Color.fromCssColorString(camera.color),
-              outlineWidth: isSelected ? 3 : 1
+              outlineWidth: isSelected ? 3 : 1,
+              classificationType: Cesium.ClassificationType.BOTH
             }
           });
         }
@@ -407,7 +399,8 @@ export const CesiumMap: React.FC = () => {
               material: Cesium.Color.fromCssColorString(colorHex).withAlpha(alpha),
               outline: true,
               outlineColor: Cesium.Color.fromCssColorString(colorHex).withAlpha(0.9),
-              outlineWidth: 1
+              outlineWidth: 1,
+              classificationType: Cesium.ClassificationType.BOTH
             }
           });
         };

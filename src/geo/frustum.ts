@@ -85,16 +85,17 @@ function generateFrustumArc(
   reverse: boolean = false
 ): FootprintVertex[] {
   const vertices: FootprintVertex[] = [];
-  const halfHfov = hfov / 2;
+  const halfHfov = Math.min(180, Math.max(1, hfov)) / 2;
 
   for (let i = 0; i <= numSamples; i++) {
     const t = reverse ? (numSamples - i) / numSamples : i / numSamples;
     const beta = -halfHfov + t * hfov; // relative angle in degrees
-    const betaRad = beta * TO_RAD;
-
-    // Planar perspective correction for pinhole lens
-    const r = groundDistance / Math.cos(betaRad);
     const bearing = normalizeHeading(heading + beta);
+
+    // In physical optics and CCTV site engineering (EN 62676-4), the camera FOV
+    // boundary is a circular sector arc of radius `groundDistance`.
+    // Radial boundary ensures zero distortion or infinite flaring at wide angles.
+    const r = groundDistance;
 
     const pt = computeDestination(lat, lon, bearing, r);
     vertices.push(pt);
@@ -162,9 +163,9 @@ export function computeCameraFootprint(
     maxRangeMeters
   );
 
-  // Lateral span at far edge
-  const halfHfovRad = (hfov / 2) * TO_RAD;
-  const footprintWidthFarMeters = Number((2 * farDistance * Math.tan(halfHfovRad)).toFixed(2));
+  // Lateral chord span at far edge (well-defined up to 180° panoramic)
+  const halfHfovRad = (Math.min(180, Math.max(1, hfov)) / 2) * TO_RAD;
+  const footprintWidthFarMeters = Number((2 * farDistance * Math.sin(halfHfovRad)).toFixed(2));
 
   // Full footprint polygon
   const coordinates = calculateFootprintForRange(params, nearDistance, farDistance, 12);

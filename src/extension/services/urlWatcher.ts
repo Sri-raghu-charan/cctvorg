@@ -76,20 +76,23 @@ class MapUrlWatcher {
       window.addEventListener('popstate', checkUpdate);
       window.addEventListener('hashchange', checkUpdate);
 
-      // Fast check during user interaction (wheel, pointer drag)
-      window.addEventListener('wheel', () => requestAnimationFrame(checkUpdate), { passive: true });
+      // Instant check during user interaction (wheel, pointer drag)
+      window.addEventListener('wheel', checkUpdate, { passive: true });
       window.addEventListener('pointerup', () => {
-        requestAnimationFrame(checkUpdate);
+        checkUpdate();
+        setTimeout(checkUpdate, 10);
         setTimeout(checkUpdate, 50);
-        setTimeout(checkUpdate, 150);
-        setTimeout(checkUpdate, 350);
+        setTimeout(checkUpdate, 120);
+        setTimeout(checkUpdate, 300);
       }, { passive: true });
       window.addEventListener('pointermove', (e) => {
-        if (e.buttons > 0) requestAnimationFrame(checkUpdate);
+        if (e.buttons > 0) {
+          checkUpdate();
+        }
       }, { passive: true });
 
-      // Fast interval check as fallback (30ms = ~33 fps)
-      this.pollInterval = window.setInterval(checkUpdate, 30);
+      // 60 FPS fast interval check as fallback (16ms = ~60 fps)
+      this.pollInterval = window.setInterval(checkUpdate, 16);
     }
   }
 

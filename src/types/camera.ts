@@ -8,6 +8,13 @@ export type CameraFormFactor = 'bullet' | 'dome' | 'turret' | 'ptz' | 'box';
 
 export type LensType = 'fixed' | 'varifocal' | 'motorized_zoom';
 
+export interface DatasheetDori {
+  detectMeters: number;     // 25 px/m detection reach
+  observeMeters: number;    // 62.5 px/m observation reach
+  recognizeMeters: number;  // 125 px/m recognition reach
+  identifyMeters: number;   // 250 px/m positive face/plate identification
+}
+
 export interface CameraSpecs {
   modelName: string;
   manufacturer: string;
@@ -28,6 +35,9 @@ export interface CameraSpecs {
   selectedVfov: number; // degrees
   maxOpticalRangeMeters: number; // Documented geometric reach / detection range
   irRangeMeters: number; // Documented infrared illumination range
+  datasheetDori?: DatasheetDori; // Official manufacturer EN 62676-4 DORI specs
+  recommendedHeight?: number; // Recommended real-world mounting height in meters
+  recommendedTilt?: number; // Recommended real-world tilt angle in degrees
   verificationStatus: VerificationStatus;
   datasheetRef?: string;
   notes?: string;
