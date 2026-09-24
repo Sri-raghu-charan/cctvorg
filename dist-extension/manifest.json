@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "CCTV GeoPlanner - 3D Camera Coverage for Google Earth & Maps",
+  "version": "1.0.0",
+  "description": "Professional 3D geospatial CCTV camera placement, FOV frustum, blind spot, and DORI coverage planning overlay for Google Earth and Google Maps.",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://earth.google.com/*",
+        "*://*.google.com/earth/*",
+        "*://google.com/earth/*",
+        "*://*.google.com/maps/*",
+        "*://maps.google.com/*",
+        "*://google.com/maps/*",
+        "*://localhost/*",
+        "*://127.0.0.1/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "CCTV GeoPlanner"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*",
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

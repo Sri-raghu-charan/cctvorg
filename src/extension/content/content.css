@@ -1,0 +1,62 @@
+@import '../../styles/theme.css';
+
+/* CCTV Extension Root Container - Non-blocking layer on Google Earth & Maps */
+#cctv-extension-root {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  pointer-events: none !important;
+  z-index: 2147483640 !important;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+}
+
+#cctv-extension-root * {
+  box-sizing: border-box;
+}
+
+.cctv-floating-bar-wrapper {
+  pointer-events: auto !important;
+}
+
+.cctv-floating-bar-header:hover {
+  background: rgba(45, 59, 85, 0.95) !important;
+}
+
+.extension-sidebar-container {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Ensure body is scrollable, captures wheel events, and has a vivid high-contrast scrollbar */
+.extension-sidebar-body {
+  flex: 1 1 auto !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #38bdf8 rgba(15, 23, 42, 0.8) !important;
+}
+
+.extension-sidebar-body::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.extension-sidebar-body::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-radius: 4px !important;
+}
+
+.extension-sidebar-body::-webkit-scrollbar-thumb {
+  background: #38bdf8 !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(15, 23, 42, 0.5) !important;
+}
+
+.extension-sidebar-body::-webkit-scrollbar-thumb:hover {
+  background: #0284c7 !important;
+}
+

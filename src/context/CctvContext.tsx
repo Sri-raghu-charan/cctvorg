@@ -15,6 +15,7 @@ import { calculateDoriDistances } from '../geo/dori';
 import { moveCamera, resetCameraToOriginal } from '../geo/movement';
 import { normalizeHeading } from '../geo/coordinates';
 import { analyzeBlindSpots, analyzeOverlaps } from '../geo/analysis';
+import { storage } from '../services/storage';
 
 export type BaseLayerType = 'satellite' | 'osm' | 'carto_dark' | 'carto_light';
 
@@ -104,9 +105,7 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
   const [isPlacingCamera, setIsPlacingCamera] = useState<boolean>(false);
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite');
-  const [cesiumIonToken, setCesiumIonToken] = useState<string>(() => {
-    return localStorage.getItem('cctv_cesium_ion_token') || '';
-  });
+  const [cesiumIonToken, setCesiumIonToken] = useState<string>('');
   const [flyToTarget, setFlyToTarget] = useState<Coordinates | null>(null);
 
   const [doriLayers, setDoriLayers] = useState<DoriLayerVisibility>({
@@ -119,11 +118,64 @@ export const CctvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [planningPerimeter, setPlanningPerimeter] = useState<PlanningPerimeter | null>(null);
   const [historyStack, setHistoryStack] = useState<Map<string, MovementHistoryEntry[]>>(new Map());
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+
+  // Hydrate state from storage on mount
+  useEffect(() => {
+    let mounted = true;
+    async function loadStoredData() {
+      try {
+        const storedCameras = await storage.get<Camera[]>('cctv_saved_cameras', [initialCamera]);
+        const storedPerimeter = await storage.get<PlanningPerimeter | null>('cctv_planning_perimeter', null);
+        const storedToken = await storage.get<string>('cctv_cesium_ion_token', '');
+        
+        if (mounted) {
+          if (Array.isArray(storedCameras) && storedCameras.length > 0) {
+            setCameras(storedCameras);
+            setActiveCameraId(storedCameras[0].id);
+          } else {
+            setCameras([initialCamera]);
+            setActiveCameraId(initialCamera.id);
+          }
+          if (storedPerimeter) {
+            setPlanningPerimeter(storedPerimeter);
+          }
+          if (storedToken) {
+            setCesiumIonToken(storedToken);
+          }
+          setIsHydrated(true);
+        }
+      } catch (e) {
+        console.warn('Storage hydration error:', e);
+        if (mounted) {
+          setCameras([initialCamera]);
+          setActiveCameraId(initialCamera.id);
+          setIsHydrated(true);
+        }
+      }
+    }
+    loadStoredData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Persist cameras when changed after hydration
+  useEffect(() => {
+    if (!isHydrated) return;
+    storage.set('cctv_saved_cameras', cameras);
+  }, [cameras, isHydrated]);
+
+  // Persist planning perimeter when changed after hydration
+  useEffect(() => {
+    if (!isHydrated) return;
+    storage.set('cctv_planning_perimeter', planningPerimeter);
+  }, [planningPerimeter, isHydrated]);
 
   // Save Ion token to storage when changed
   useEffect(() => {
     if (cesiumIonToken) {
-      localStorage.setItem('cctv_cesium_ion_token', cesiumIonToken);
+      storage.set('cctv_cesium_ion_token', cesiumIonToken);
     }
   }, [cesiumIonToken]);
 

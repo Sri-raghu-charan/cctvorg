@@ -64,8 +64,60 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ camera }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Quick Jump Bar for Quick Scrolling */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '6px',
+          overflowX: 'auto',
+          paddingBottom: '2px',
+          scrollbarWidth: 'none'
+        }}
+      >
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => document.getElementById('sec-identity')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          style={{ fontSize: '10px', padding: '4px 8px', borderRadius: '12px', whiteSpace: 'nowrap' }}
+        >
+          Identity
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => document.getElementById('sec-specs')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          style={{ fontSize: '10px', padding: '4px 8px', borderRadius: '12px', whiteSpace: 'nowrap' }}
+        >
+          Specs
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => document.getElementById('sec-compass')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          style={{ fontSize: '10px', padding: '4px 8px', borderRadius: '12px', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #0284c7, #2563eb)' }}
+        >
+          🧭 Compass
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => document.getElementById('sec-movement')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          style={{ fontSize: '10px', padding: '4px 8px', borderRadius: '12px', whiteSpace: 'nowrap' }}
+        >
+          🕹️ D-Pad
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => document.getElementById('sec-metrics')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          style={{ fontSize: '10px', padding: '4px 8px', borderRadius: '12px', whiteSpace: 'nowrap' }}
+        >
+          📊 Metrics
+        </button>
+      </div>
+
       {/* General Identification */}
-      <div className="card-section">
+      <div id="sec-identity" className="card-section">
         <div className="card-title">
           <span>Camera Identity</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -103,7 +155,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ camera }) => {
       </div>
 
       {/* Model & Specifications Section */}
-      <div className="card-section">
+      <div id="sec-specs" className="card-section">
         <div className="card-title">
           <span>Model Specifications</span>
           {camera.specs.verificationStatus === 'verified' ? (
@@ -299,7 +351,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ camera }) => {
       </div>
 
       {/* Mounting & Orientation */}
-      <div className="card-section">
+      <div id="sec-orientation" className="card-section">
         <div className="card-title">
           <span>Mounting & Orientation</span>
         </div>
@@ -350,7 +402,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ camera }) => {
         </div>
 
         {/* Circular Compass Control */}
-        <div style={{ marginTop: '8px' }}>
+        <div id="sec-compass" style={{ marginTop: '8px' }}>
           <div className="form-label-row" style={{ marginBottom: '4px' }}>
             <span>Camera Heading (Azimuth)</span>
             <span className="form-value-badge">{Math.round(camera.heading)}°</span>
@@ -363,17 +415,19 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ camera }) => {
       </div>
 
       {/* Ground Movement Controls */}
-      <GroundMovementControls
-        camera={camera}
-        onMove={(dir, dist) => stepCamera(camera.id, dir, dist)}
-        onUndo={() => undoMovement(camera.id)}
-        onReset={() => resetToOriginal(camera.id)}
-        canUndo={canUndo}
-      />
+      <div id="sec-movement">
+        <GroundMovementControls
+          camera={camera}
+          onMove={(dir, dist) => stepCamera(camera.id, dir, dist)}
+          onUndo={() => undoMovement(camera.id)}
+          onReset={() => resetToOriginal(camera.id)}
+          canUndo={canUndo}
+        />
+      </div>
 
       {/* Computed Coverage Geometry Readout */}
       {activeFootprint && (
-        <div className="card-section">
+        <div id="sec-metrics" className="card-section">
           <div className="card-title">
             <span>Ground Coverage Metrics</span>
           </div>

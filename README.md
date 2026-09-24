@@ -8,23 +8,47 @@ All camera coverage calculations, field-of-view (FOV) frustums, ground blind-spo
 
 ## Quick Start (How to Run)
 
-The local development server is already configured and running at:
-👉 **[http://localhost:5173/](http://localhost:5173/)**
+### Option A: As a Google Earth & Google Maps Browser Extension (Manifest V3)
 
-### Running from Scratch / Terminal Commands
+The project includes a ready-to-load Manifest V3 browser extension that injects a non-blocking 3D CCTV planning workstation directly inside **Google Earth** (`earth.google.com`) and **Google Maps** (`google.com/maps`).
 
-1. **Install dependencies:**
+1. **Build the extension bundle:**
    ```bash
-   npm install
+   npm run build:extension
    ```
+   *(This outputs the unpacked extension in the `dist-extension/` directory).*
 
-2. **Start the interactive development server:**
+2. **Load into Google Chrome / Microsoft Edge / Brave:**
+   - Open Chrome and navigate to `chrome://extensions/` (or `edge://extensions/`).
+   - Turn **ON** **Developer mode** (toggle in the top-right corner).
+   - Click the **"Load unpacked"** button.
+   - Select the `d:\files\dist-extension` folder.
+   - The **"CCTV GeoPlanner - 3D Camera Coverage for Google Earth & Maps"** extension will appear in your toolbar!
+
+3. **Use on Google Earth & Google Maps:**
+   - Navigate to [Google Earth Web](https://earth.google.com/web/) or [Google Maps](https://www.google.com/maps).
+   - The compact **CCTV Planner** floating bar floats above the map:
+     ```text
+     ┌──────────────────────────────┐
+     │ CCTV Planner   ●  −  ×       │
+     └──────────────────────────────┘
+     ```
+   - Drag the bar anywhere on screen from its header handle (it remembers its position).
+   - Click **`+` (Add Camera)**: click anywhere on the Earth or map to drop a camera at that exact real-world coordinate.
+   - Click **`Compass` (Street View)**: inspect real-world ground surroundings before finalizing camera mounting positions.
+   - Native Google Earth navigation (pan, tilt, 3D rotate, zoom) works 100% unimpeded.
+
+---
+
+### Option B: As a Standalone 3D Cesium Web Application
+
+1. **Start the interactive development server:**
    ```bash
    npm run dev
    ```
    Open your browser and navigate to `http://localhost:5173/`.
 
-3. **Run the automated geospatial test suite:**
+2. **Run the automated geospatial test suite:**
    ```bash
    npx vitest run
    ```
