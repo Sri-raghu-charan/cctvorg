@@ -146,5 +146,33 @@ describe('Geospatial Projection Engine', () => {
       // Ratio of screen displacement should equal ratio of distances (300 / 1500 = 0.2)
       expect(dxOut / dxIn).toBeCloseTo(0.2, 1);
     });
+
+    it('accurately round-trips screen coordinates under 40 degree tilt and 112 degree heading', () => {
+      const tiltedView: GoogleEarthViewState = {
+        latitude: 16.8325,
+        longitude: 82.0345,
+        altitude: 31.47,
+        distance: 114,
+        pitch: 40.5,
+        heading: 112.1,
+        roll: 0
+      };
+
+      // Pick a point near the center of the screen
+      const testScreenX = 640;
+      const testScreenY = 420;
+
+      const unprojected = unprojectGoogleEarthScreen(testScreenX, testScreenY, tiltedView, viewport);
+      const projected = projectGoogleEarthToScreen(
+        unprojected.latitude,
+        unprojected.longitude,
+        tiltedView.altitude,
+        tiltedView,
+        viewport
+      );
+
+      expect(projected.x).toBeCloseTo(testScreenX, 0);
+      expect(projected.y).toBeCloseTo(testScreenY, 0);
+    });
   });
 });

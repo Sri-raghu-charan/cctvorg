@@ -12,7 +12,8 @@ import {
   X,
   GripHorizontal,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MapPin
 } from 'lucide-react';
 
 interface Position {
@@ -21,7 +22,14 @@ interface Position {
 }
 
 export const FloatingBar: React.FC = () => {
-  const { cameras, activeCamera, isPlacingCamera, setIsPlacingCamera } = useCctv();
+  const {
+    cameras,
+    activeCamera,
+    isPlacingCamera,
+    setIsPlacingCamera,
+    isRelocatingCamera,
+    setIsRelocatingCamera
+  } = useCctv();
 
   const getDefaultPosition = (): Position => {
     const width = typeof window !== 'undefined' ? window.innerWidth : 1200;
@@ -299,7 +307,10 @@ export const FloatingBar: React.FC = () => {
             <button
               type="button"
               className="btn btn-primary btn-icon-only"
-              onClick={() => setIsPlacingCamera(!isPlacingCamera)}
+              onClick={() => {
+                setIsPlacingCamera(!isPlacingCamera);
+                setIsRelocatingCamera(false);
+              }}
               title={isPlacingCamera ? 'Cancel camera placement' : 'Add new camera to map'}
               style={{
                 width: '24px',
@@ -311,6 +322,27 @@ export const FloatingBar: React.FC = () => {
               }}
             >
               <Plus size={13} />
+            </button>
+
+            {/* Quick Relocate Active Camera */}
+            <button
+              type="button"
+              className="btn btn-secondary btn-icon-only"
+              onClick={() => {
+                setIsRelocatingCamera(!isRelocatingCamera);
+                setIsPlacingCamera(false);
+              }}
+              title={isRelocatingCamera ? 'Cancel relocation' : 'Relocate active camera to junction / click'}
+              style={{
+                width: '24px',
+                height: '24px',
+                background: isRelocatingCamera ? '#0284c7' : 'rgba(51, 65, 85, 0.6)',
+                color: isRelocatingCamera ? '#fff' : '#94a3b8',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '6px'
+              }}
+            >
+              <MapPin size={12} />
             </button>
 
             {/* Street View Inspector */}

@@ -42,5 +42,12 @@ declare namespace chrome {
   export namespace tabs {
     export function create(createProperties: { url?: string; active?: boolean }, callback?: (tab: any) => void): void;
     export function sendMessage(tabId: number, message: any, responseCallback?: (response: any) => void): Promise<any>;
+    export function query(queryInfo: { active?: boolean; currentWindow?: boolean; [key: string]: any }, callback?: (result: any[]) => void): Promise<any[]>;
+    export function reload(tabId?: number): Promise<void>;
+  }
+
+  export namespace scripting {
+    export function executeScript(injection: { target: { tabId: number; allFrames?: boolean }; files?: string[]; func?: (...args: any[]) => any }): Promise<any[]>;
+    export function insertCSS(injection: { target: { tabId: number; allFrames?: boolean }; files?: string[]; css?: string }): Promise<void>;
   }
 }

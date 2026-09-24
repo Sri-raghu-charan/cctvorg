@@ -83,25 +83,20 @@ async function runExtensionBuild() {
 
   // 3. Build Popup
   console.log('3. Building popup UI...');
+  const popupSrcDir = path.resolve(rootDir, 'src/extension/popup');
   await build({
     configFile: false,
+    root: popupSrcDir,
     plugins: [react()],
     base: './',
     build: {
       outDir: path.join(outDir, 'popup'),
       emptyOutDir: false,
       rollupOptions: {
-        input: path.resolve(rootDir, 'src/extension/popup/popup.html')
+        input: path.resolve(popupSrcDir, 'popup.html')
       }
     }
   });
-
-  // Move popup.html from outDir/popup/src/extension/popup/popup.html to outDir/popup/popup.html if nested by Vite
-  const nestedPopup = path.join(outDir, 'popup', 'src', 'extension', 'popup', 'popup.html');
-  if (fs.existsSync(nestedPopup)) {
-    fs.copyFileSync(nestedPopup, path.join(outDir, 'popup', 'popup.html'));
-    fs.rmSync(path.join(outDir, 'popup', 'src'), { recursive: true, force: true });
-  }
 
   // 4. Copy manifest and icons
   console.log('4. Copying manifest and icons...');

@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "build:extension": "node scripts/build-extension.js",
     "build:all": "npm run build && npm run build:extension",
+    "test": "vitest run",
     "icons": "node scripts/generate-icons.js",
     "lint": "oxlint",
     "preview": "vite preview"
